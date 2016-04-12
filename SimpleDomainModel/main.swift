@@ -21,17 +21,16 @@ public class TestMe {
 ////////////////////////////////////
 // Money
 //
-
-// maps currency types relative to USD
-let currMap = ["USD" : 1, "GBP" : 0.5, "EUR" : 1.5, "CAN" : 1.25]
-
 public struct Money {
     public var amount : Int
     public var currency : String
     
     public func convert(to: String) -> Money {
-        if currMap.keys.contains(to) {
-            return Money(amount: Int((Double(self.amount) / currMap[self.currency]!) * currMap[to]!), currency: to)
+        // maps currency types relative to USD
+        let currMap = ["USD" : 1, "GBP" : 0.5, "EUR" : 1.5, "CAN" : 1.25]
+        
+        if let conv = currMap[to] {
+            return Money(amount: Int((Double(self.amount) / currMap[self.currency]!) * conv), currency: to)
         } else {
             print("cannot convert to currency type", to)
             exit(1)
@@ -64,10 +63,21 @@ public class Job {
     }
     
     public func calculateIncome(hours: Int) -> Int {
-        return Int(self.salary * hours)
+        switch self.salary {
+        case .Hourly(let rate):
+            return Int(Double(hours) * rate)
+        case .Salary(let salary):
+            return salary
+        }
     }
 
     public func raise(amt : Double) {
+        switch self.salary {
+        case .Hourly(let rate):
+            self.salary = JobType.Hourly(rate + amt)
+        case .Salary(let salary):
+            self.salary = JobType.Salary(salary + Int(amt))
+        }
     }
 }
 
@@ -78,21 +88,23 @@ public class Person {
     public var firstName : String = ""
     public var lastName : String = ""
     public var age : Int = 0
+    private var _job : Job?
+    private var _spouse : Person?
     
     public var job : Job? {
-        get { return self.job }
+        get { return self._job }
         set(value) {
-            if age >= 16 {
-                self.job = value
+            if self.age >= 16 {
+                self._job = value!
             }
         }
     }
     
     public var spouse : Person? {
-        get { return self.spouse }
+        get { return self._spouse }
         set(value) {
-            if age >= 18 {
-                self.spouse = value
+            if self.age >= 18 {
+                self._spouse = value!
             }
         }
     }
@@ -104,16 +116,12 @@ public class Person {
     }
     
     public func toString() -> String {
-        var string = "Person: {" + "\n\tfirstName: " + self.firstName
-        string += "\n\tlastName: " + self.lastName + "\n\tage: " + String(self.age)
-        if self.job != nil {
-            string += "\n\tjob: " + (self.job?.title)!
-        }
-        if self.spouse != nil {
-            let other = self.spouse!
-            string += "\n\tspouse: " + other.firstName + " " + other.lastName
-        }
-        return string + "\n}"
+        var string = "[Person:" + " firstName:" + self.firstName
+        string += " lastName:" + self.lastName + " age:" + String(self.age)
+        string += " job:" + (self._job == nil ? "nil" : (self._job?.title)!)
+        let other = self._spouse
+        string += " spouse:" + (other == nil ? "nil" : other!.firstName + " " + other!.lastName)
+        return string + "]"
     }
 }
 
@@ -124,26 +132,36 @@ public class Family {
     private var members : [Person] = []
     
     public init(spouse1: Person, spouse2: Person) {
-        if spouse1.spouse == nil && spouse2.spouse == nil {
+        if spouse1.spouse == nil && spouse2.spouse == nil && (spouse1.age > 21 || spouse2.age > 21) {
             spouse1.spouse = spouse2
             spouse2.spouse = spouse1
+            self.members.append(spouse1)
+            self.members.append(spouse2)
+        } else {
+            print("spouses cannot already be married and there must be at least one over the age of 21")
+            exit(1)
         }
-        self.members.append(spouse1)
-        self.members.append(spouse2)
     }
     
     public func haveChild(child: Person) -> Bool {
-        if child.age == 0 {
-            self.members.append(child)
-            return true
-        }
-        return false
+        child.age = 0
+        self.members.append(child)
+        return true
     }
     
     public func householdIncome() -> Int {
         var totalIncome = 0
         self.members.forEach({ (member : Person) -> () in
-            totalIncome += member.job?.salary
+            if let job = member.job {
+                var hours : Int
+                switch job.salary {
+                case .Hourly(_):
+                    hours = 40 * 50
+                case .Salary(_):
+                    hours = 0
+                }
+                totalIncome += job.calculateIncome(hours)
+            }
         })
         return totalIncome
     }
