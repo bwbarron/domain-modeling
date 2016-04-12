@@ -144,7 +144,6 @@ public class Family {
     }
     
     public func haveChild(child: Person) -> Bool {
-        child.age = 0
         self.members.append(child)
         return true
     }
